@@ -1,0 +1,36 @@
+[project]
+name = "aidenix-atlas"
+version = "0.9.4"
+description = "Run Aidenix Atlas data-source recipes locally: verified registries, APIs and datasets, fetched with your own credentials."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "Aidenix Inc.", email = "info@aidenix.com"}]
+requires-python = ">=3.12"
+dependencies = ["httpx>=0.27", "cryptography>=46.0", "rfc8785>=0.1.4",
+                "duckdb>=1.1", "openpyxl>=3.1", "xlrd>=2.0", "curl_cffi>=0.7", "pypdfium2>=4.30"]
+keywords = ["open data", "data sources", "registries", "mcp", "recipes"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+  "Topic :: Internet :: WWW/HTTP",
+]
+
+[project.optional-dependencies]
+html = ["beautifulsoup4>=4.12"]
+tabular = []   # since 0.7.0 xlsx/xls readers ship with the package; kept so old installs still resolve
+all = ["beautifulsoup4>=4.12"]
+
+[project.urls]
+Homepage = "https://atlas.aidenix.com"
+Source = "https://github.com/aidenixai/atlas-client-snapshot"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aidenix_atlas"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
