@@ -1,6 +1,6 @@
 [project]
 name = "aidenix-atlas"
-version = "0.9.4"
+version = "0.9.5.dev0"
 description = "Run Aidenix Atlas data-source recipes locally: verified registries, APIs and datasets, fetched with your own credentials."
 readme = "README.md"
 license = "MIT"
@@ -23,7 +23,6 @@ all = ["beautifulsoup4>=4.12"]
 
 [project.urls]
 Homepage = "https://atlas.aidenix.com"
-Source = "https://github.com/aidenixai/atlas-client-snapshot"
 
 [build-system]
 requires = ["hatchling>=1.27"]

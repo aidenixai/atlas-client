@@ -16,7 +16,7 @@ from . import _recipe_runtime  # noqa: F401 — chain bootstraps import the runt
 from ._recipe_runtime import (attempt_outcome, attempts_from_payload, run_chain_recipe, run_recipe,
                               run_with_fallback, seed_seen, seed_values_of)
 
-__version__ = "0.9.4"
+__version__ = "0.9.5.dev0"
 
 DEFAULT_PUBLIC_URL = "https://atlas.aidenix.com"
 

@@ -45,8 +45,11 @@ import shutil
 import tarfile
 import time
 import zipfile
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
+
+import httpx
 
 DEFAULT_MAX_MB = 256.0
 DEFAULT_TIMEOUT_S = 300.0
@@ -179,7 +182,6 @@ def _once(method, url, fetch, max_bytes, timeout, hdrs, buf, seen=None):
         return r.status_code, rh, str(r.url)
     if fetch != 'plain':
         raise ValueError('fetch must be plain or impersonate')
-    import httpx
     with httpx.Client(timeout=timeout, follow_redirects=True, headers={'User-Agent': UA, **hdrs}) as client:
         try:
             with client.stream(method, url) as r:
@@ -547,6 +549,41 @@ class Session:
         self.close()
 
 
+@contextmanager
+def _connector_response(client, method, initial, headers, json_body, data, profile, proxies, timeout):
+    current = initial
+    deadline = time.monotonic() + timeout if timeout and timeout > 0 else None
+    for hop in range(31):
+        for hook in list(before_fetch):
+            hook(method, str(current))
+        remaining = deadline - time.monotonic() if deadline is not None else timeout
+        if deadline is not None and remaining <= 0:
+            raise TimeoutError('dataset request timed out')
+        response = client.request(method, str(current), impersonate=profile, timeout=remaining,
+                                  headers=headers, json=json_body, data=data, proxies=proxies,
+                                  allow_redirects=False, stream=True)
+        try:
+            status = response.status_code
+            location = response.headers.get('Location')
+            if status not in (301, 302, 303, 307, 308) or not location:
+                yield response
+                return
+            if hop == 30:
+                raise ValueError('too many dataset redirects')
+            target = current.join(location)
+            if (target.scheme != initial.scheme or target.raw_host != initial.raw_host
+                    or target.port != initial.port or target.userinfo):
+                raise ValueError('dataset redirect must keep the original scheme, host and port')
+            # Reuse the original authority for every request handed to libcurl.
+            current = initial.copy_with(raw_path=target.raw_path)
+            if (status == 303 and method != 'HEAD') or (status in (301, 302) and method == 'POST'):
+                method, json_body, data = 'GET', None, None
+                headers = {k: v for k, v in headers.items()
+                           if k.lower() not in ('content-length', 'content-type', 'transfer-encoding')}
+        finally:
+            response.close()
+
+
 def fetch(method: str, url: str, *, params: dict | None = None, headers: dict | None = None,
           json_body=None, data=None, profile: str = 'chrome', use_proxy: bool = False,
           max_mb: float = 16.0, timeout: float = 30.0, _session=None) -> Response:
@@ -555,31 +592,29 @@ def fetch(method: str, url: str, *, params: dict | None = None, headers: dict | 
 
     `use_proxy=True` sends it through the client's own proxy (ATLAS_PROXY_URL), the same proxy
     the runtime uses for steps with needs_proxy; without the variable the request goes direct.
-    Hooks receive the URL with its query parameters. Use Session to retain cookies between calls."""
+    Redirects stay on the original scheme, host and port. Hooks receive each request URL.
+    Use Session to retain cookies between calls."""
     method = method.upper()
     if params:
         parts = urlsplit(url)
         query = '&'.join(q for q in (parts.query, urlencode(params, doseq=True)) if q)
         url = parts._replace(query=query).geturl()
-    if urlsplit(url).scheme not in ('http', 'https'):
-        raise ValueError('fetch url must be http(s)')
-    cr = _session or need('impersonate')
-    for hook in list(before_fetch):
-        hook(method, url)
+    initial = httpx.URL(url)
+    if initial.scheme not in ('http', 'https') or not initial.host:
+        raise ValueError('fetch url must be an absolute http(s) URL')
     proxy = os.environ.get('ATLAS_PROXY_URL') if use_proxy else None
+    proxies = {'http': proxy, 'https': proxy} if proxy else None
     max_bytes = int(max_mb * (1 << 20))
-    r = cr.request(method, url, impersonate=profile, timeout=timeout, headers=dict(headers or {}),
-                   json=json_body, data=data, allow_redirects=True, stream=True,
-                   proxies={'http': proxy, 'https': proxy} if proxy else None)
     buf = bytearray()
-    try:
-        for chunk in r.iter_content(1 << 16):
-            buf.extend(chunk)
-            if len(buf) > max_bytes:
-                raise ValueError('response larger than %d MB' % (max_bytes >> 20))
-        rh = {k.lower(): v for k, v in r.headers.items()}
-        status, final_url = r.status_code, str(r.url)
-    finally:
-        r.close()
+    session = nullcontext(_session) if _session is not None else need('impersonate').Session()
+    with session as client:
+        with _connector_response(client, method, initial, dict(headers or {}), json_body, data,
+                                 profile, proxies, timeout) as r:
+            for chunk in r.iter_content(1 << 16):
+                buf.extend(chunk)
+                if len(buf) > max_bytes:
+                    raise ValueError('response larger than %d MB' % (max_bytes >> 20))
+            rh = {k.lower(): v for k, v in r.headers.items()}
+            status, final_url = r.status_code, str(r.url)
     _notify(method, url, status, bytes(buf), final_url)
     return Response(status, rh, bytes(buf), final_url)

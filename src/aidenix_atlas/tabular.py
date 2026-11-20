@@ -33,10 +33,7 @@ UNPACK_CAP = 256 * 1024**2
 def _unpack_cap() -> int:
     return _archive_cap(UNPACK_CAP)
 
-# Keys under which a JSON object holds the list of records. A STRICT list, not "the first
-# list found": on 29 URLs naive descent returned 11 lists, 2 of them false
-# (dados.recife.pe.gov.br has metadados.campos next to the data — a column list of the
-# description file, which was counted as data).
+# A response may contain both column metadata and data arrays. Only descend through record keys.
 LIST_KEYS = ("features", "records", "data", "results", "items", "value", "rows",
              "observations", "elements", "entries")
 

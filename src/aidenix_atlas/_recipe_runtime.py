@@ -1431,9 +1431,7 @@ def _salvage_array_at(s: str, i: int, dec) -> tuple[list, int]:
 def _salvage_json(text: str):
     """Truncated json -> everything whole from its start. Array: whole elements; object: whole
     keys and, for a key with a cut-off array, the whole elements of that array (GeoJSON
-    `features`, CKAN `result.records`, nested). Real case: a road-data FeatureCollection with 3.3M
-    records under a 256 MB cap; without salvage the fragment went to csv parsing and yielded
-    200,000 "rows" made of json pieces. Nothing whole -> None."""
+    `features`, CKAN `result.records`, nested). Return None when no complete value remains."""
     import json as _j
     s = text.lstrip()
     dec = _j.JSONDecoder()
@@ -2749,14 +2747,7 @@ def prepare_call(ep: dict, params: dict, auth: dict, api_key: str | None):
             if _tok not in _subst_src and _tok.lower() == _an.lower():
                 _subst_src[_tok] = api_key
     for _src, _dst in (ep.get("param_aliases") or {}).items():
-        # Condition is "_dst not in params", NOT "not in _subst_src": _subst_src already holds
-        # param_defaults, and the old check permanently blocked the alias in any recipe
-        # with a default for the same token. Real case: pypi.org PyPI recipe:
-        # url `/pypi/{package}/json`, defaults `{package: requests}`, alias
-        # `{package_name: package}`. The client asked for langchain, the extractor got it,
-        # the runtime substituted `requests`, on 32 tasks in a row.
-        # A default is a fallback by definition: a param under its own name and a param
-        # under an alias must both beat it. Only an explicit params[_dst] wins over the alias.
+        # Explicit destination values take precedence over aliases, and aliases override defaults.
         if _src in params and _dst not in params:
             _subst_src[_dst] = params[_src]
     url, consumed = _subst_path(_endpoint_url(ep), _subst_src)

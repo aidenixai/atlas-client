@@ -62,9 +62,10 @@ is documented at https://atlas.aidenix.com/recipe-format.
 
 ## Safety
 
-- Recipes reach only the public internet: hostnames that resolve to private, loopback or
-  link-local addresses are refused before the request. Set `ATLAS_ALLOW_PRIVATE_ADDRESSES=1`
-  only for your own test servers.
+- The declarative HTTP runner checks the destination before each request. By default it
+  blocks private, loopback and link-local addresses. When a proxy resolves the hostname,
+  the client can check only local names and literal IP addresses. Set
+  `ATLAS_ALLOW_PRIVATE_ADDRESSES=1` only for your own test servers.
 - Chain code runs automatically only with `code_trust="verified"`, an integer
   `code_revision` and a valid Atlas Ed25519 signature. The SDK checks the entire
   recipe against a public key shipped with the package before any request or code
@@ -79,10 +80,10 @@ is documented at https://atlas.aidenix.com/recipe-format.
 - Signatures confirm that Atlas issued the recipe; Python code still runs with
   your process permissions. Verification is not a sandbox. The SDK never accepts
   a public key supplied inside a recipe.
-- Credential-bearing HTTP requests require an independent `ep.signature` binding
+- Declarative HTTP steps that use credentials require an independent `ep.signature` binding
   the complete endpoint and `auth`. Preserve both exactly as Atlas issued them.
   This includes explicit `api_key`, environment keys, passwords and managed auth headers.
-- Credential recipients must use fixed HTTPS origins. Host/port substitutions,
+- Credential recipients in declarative HTTP steps must use fixed HTTPS origins. Host/port substitutions,
   cross-origin redirects and disabling TLS certificate checks are refused,
   including resource alternatives, fanout and login. `allow_untrusted_code` does
   not bypass credential authorization. Chains with credentials also require the
@@ -90,7 +91,10 @@ is documented at https://atlas.aidenix.com/recipe-format.
 - Fresh endpoint signatures are required after 24 hours. Regenerate standalone
   exports and refetch recipes issued before 0.7.0; do not remove signatures to
   bypass a failure. Existing unsigned custom endpoints can make anonymous requests.
-- Source keys stay local: a recipe declares the environment variable it reads.
+- Python connectors can call `dataset.fetch` or `dataset.Session.fetch` with their own headers
+  and request body. Starting in `0.9.5.dev0`, these helpers follow HTTP redirects only within
+  the original scheme, hostname and port. Choose a trusted HTTPS URL for the initial request when sending credentials.
+  A connector runs with the permissions of the local Python process.
 
 ## Run reports
 
