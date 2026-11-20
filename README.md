@@ -92,7 +92,7 @@ is documented at https://atlas.aidenix.com/recipe-format.
   exports and refetch recipes issued before 0.7.0; do not remove signatures to
   bypass a failure. Existing unsigned custom endpoints can make anonymous requests.
 - Python connectors can call `dataset.fetch` or `dataset.Session.fetch` with their own headers
-  and request body. Starting in `0.9.5.dev0`, these helpers follow HTTP redirects only within
+  and request body. Starting in `0.9.5`, these helpers follow HTTP redirects only within
   the original scheme, hostname and port. Choose a trusted HTTPS URL for the initial request when sending credentials.
   A connector runs with the permissions of the local Python process.
 
